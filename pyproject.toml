@@ -6,7 +6,9 @@ readme = "README.md"
 license = {text = "Apache 2.0"}
 requires-python = ">=3.11" # If you adjust this, you will need to adjust the python-tests workflow accordingly.
 # Add your dependencies to this project by using `uv add <package>`.
-dependencies = []
+dependencies = [
+    "pydantic>=2.10.6",
+]
 
 [dependency-groups]
 # Add your dev dependencies to this project by using `uv add --dev <package>`.
@@ -17,7 +19,7 @@ dev = [
 ]
 
 [tool.setuptools]
-package-dir = {hello="src/hello"}
+package-dir = {launch_webhook_aws="src/launch_webhook_aws"}
 license-files = [] # Workaround for https://github.com/astral-sh/uv/issues/9513
 
 [tool.pytest.ini_options]

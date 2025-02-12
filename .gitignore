@@ -176,3 +176,5 @@ cython_debug/
 # LCAF
 .repo/
 components/
+
+.DS_Store
