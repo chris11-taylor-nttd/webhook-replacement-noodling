@@ -1,4 +1,5 @@
 import inspect
+from types import GenericAlias
 from typing import Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -23,16 +24,35 @@ class Rule(BaseModel):
 
     @model_validator(mode="after")
     def check_transform_signature(self) -> Self:
+        """Checks the signature of the transform function to ensure it accepts and returns the correct types.
+
+        The transform function must accept a parameter named event, which must be annotated as a dict or a
+        subclass of ScmEvent. The function must annotate its return type as dict.
+        """
         transform_signature = inspect.signature(self.transform)
+
         if "event" not in transform_signature.parameters:
             raise ValueError("Rule transform function must accept an event parameter!")
-        if transform_signature.parameters["event"].annotation is not dict:
-            if not issubclass(
-                transform_signature.parameters["event"].annotation, ScmEvent
-            ):
+
+        event_annotation = transform_signature.parameters["event"].annotation
+
+        if event_annotation is not dict and type(event_annotation) is GenericAlias:
+            if event_annotation.__origin__ is not dict:
                 raise ValueError(
                     "Rule transform event parameter must be annotated to accept a dict or a subclass of ScmEvent"
                 )
-        if transform_signature.return_annotation is not dict:
+        elif event_annotation is not dict:
+            if not issubclass(event_annotation, ScmEvent):
+                raise ValueError(
+                    "Rule transform event parameter must be annotated to accept a dict or a subclass of ScmEvent"
+                )
+
+        if (
+            transform_signature.return_annotation is not dict
+            and type(transform_signature.return_annotation) is GenericAlias
+        ):
+            if transform_signature.return_annotation.__origin__ is not dict:
+                raise ValueError("Rule transform return annotation must be dict!")
+        elif transform_signature.return_annotation is not dict:
             raise ValueError("Rule transform return annotation must be dict!")
         return self

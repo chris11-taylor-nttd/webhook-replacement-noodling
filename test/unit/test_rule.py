@@ -1,4 +1,5 @@
 from contextlib import ExitStack as does_not_raise
+from typing import Any
 
 import pytest
 from pydantic import ValidationError
@@ -14,6 +15,18 @@ class ExampleTransforms:
 
     @staticmethod
     def also_good(event: PullRequestClosed) -> dict:
+        return event
+
+    @staticmethod
+    def described_dictionary_is_fine(event: dict[str, Any]) -> dict[str, Any]:
+        return event
+
+    @staticmethod
+    def generic_arg_aliases_are_inspected(event: list[str]) -> dict:
+        return event
+
+    @staticmethod
+    def generic_arg_returns_are_inspected(event: dict) -> list[str]:
         return event
 
     @staticmethod
@@ -46,6 +59,15 @@ class ExampleTransforms:
     [
         (ExampleTransforms.good, does_not_raise()),
         (ExampleTransforms.also_good, does_not_raise()),
+        (ExampleTransforms.described_dictionary_is_fine, does_not_raise()),
+        (
+            ExampleTransforms.generic_arg_aliases_are_inspected,
+            pytest.raises(ValidationError),
+        ),
+        (
+            ExampleTransforms.generic_arg_returns_are_inspected,
+            pytest.raises(ValidationError),
+        ),
         (ExampleTransforms.bad_arg_type, pytest.raises(ValidationError)),
         (ExampleTransforms.bad_return_type, pytest.raises(ValidationError)),
         (ExampleTransforms.bad_missing_arg, pytest.raises(ValidationError)),
