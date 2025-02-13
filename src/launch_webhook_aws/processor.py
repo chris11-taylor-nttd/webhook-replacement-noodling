@@ -9,20 +9,11 @@ import boto3
 from arn import Arn
 from pydantic import BaseModel, Field
 
-from launch_webhook_aws.bitbucket_server.event import ParsedBitbucketServerEvent
-from launch_webhook_aws.github.event import ParsedGithubEvent
 from launch_webhook_aws.rule import Rule
+from launch_webhook_aws.source import SourceEvent
 
 logger = logging.getLogger("processor")
 logger.setLevel(logging.DEBUG)
-
-
-class WebhookEvent(BaseModel):
-    http_headers: dict[str, str] = Field(
-        default_factory=dict,
-        description="HTTP headers received with the incoming request.",
-    )
-    body: str = Field(..., description="Raw body of the incoming request.")
 
 
 class EventProcessor(BaseModel):
@@ -32,28 +23,33 @@ class EventProcessor(BaseModel):
     )
 
     def process_raw_event(self, headers: dict[str, str], body: str) -> None:
-        event_body = json.loads(self.body)
+        body = json.loads(body)
+        raw_event = SourceEvent(headers=headers, body=body)
+        source_event = raw_event.to_source_event()
 
-        if "X-Github-Event" in self.http_headers:
-            if "action" not in event_body:
-                event_body["action"] = self.http_headers["X-Github-Event"]
-            else:
-                event_body["action"] = ".".join(
-                    [self.http_headers["X-Github-Event"], event_body["action"]]
-                )
-            # Github header is present, need to determine if it's enterprise or not
-            if "X-Github-Enterprise-Version" in self.http_headers:
-                raise NotImplementedError("GitHub Enterprise is not yet supported.")
-            return ParsedGithubEvent(**self.model_dump(), event=event_body)
-        elif "X-Event-Key" in self.http_headers:
-            # Bitbucket header is present, need to determine if it's server or not
-            if "X-Hook-UUID" in self.http_headers:
-                raise NotImplementedError("Bitbucket Cloud is not yet supported.")
-            return ParsedBitbucketServerEvent(**self.model_dump(), event=event_body)
-        raise NotImplementedError("This event is not yet implemented.")
+        for rule in self.rules:
+            if rule.match(source_event.event):
+                if rule.source_spec.verify_signature:
+                    if not self.verify_event_signature(
+                        event_signature=source_event.event.signature_hash_sha256,
+                        raw_event_body=body,
+                        signature_secret=rule.source_spec.signature_secret,
+                    ):
+                        raise RuntimeError(
+                            "Signature verification failed. This event will not be processed."
+                        )
+                transform_signature = inspect.signature(rule.transform)
+                if transform_signature.parameters["event"].annotation is dict:
+                    event = source_event.event.model_dump()
+                else:
+                    event = source_event.event
+                logger.debug("Transforming event...")
+                transformed_event = rule.transform(event=event)
+                logger.debug("Event transform complete, invoking destination")
+                rule.destination_spec.invoke(transformed_event=transformed_event)
 
     def verify_event_signature(
-        self, headers: dict[str, str], body: str, signature_secret: Arn
+        self, event_signature: str, raw_event_body: str, signature_secret: Arn
     ) -> bool:
         try:
             secret = self.secretsmanager_client.get_secret_value(
@@ -65,39 +61,16 @@ class EventProcessor(BaseModel):
             )
             raise
 
-        envelope.http_headers.get("X-Hub-Signature")
-
         hash_object = hmac.new(
             secret.encode("utf-8"),
-            msg=envelope.body_raw.encode("utf-8"),
+            msg=raw_event_body.encode("utf-8"),
             digestmod=hashlib.sha256,
         )
         calculated_signature = f"sha256={hash_object.hexdigest()}"
-        print(f"{calculated_signature=}, {envelope.signature_hash=}")
-        if hmac.compare_digest(calculated_signature, envelope.signature_hash):
+        print(f"{calculated_signature=}, {event_signature=}")
+        if hmac.compare_digest(calculated_signature, event_signature):
             return True
         logger.error(
-            f"Signature verification failed for {envelope.signature_hash=}; {calculated_signature=}."
+            f"Signature verification failed for {event_signature=}; {calculated_signature=}."
         )
         return False
-
-    def process_event(self, envelope: ParsedEvent) -> dict:
-        for rule in self.rules:
-            if rule.match(envelope.event):
-                if rule.source_spec.verify_signature:
-                    if not self.verify_event_signature(
-                        envelope=envelope,
-                        signature_secret=rule.source_spec.signature_secret,
-                    ):
-                        raise RuntimeError(
-                            "Signature verification failed. This event will not be processed."
-                        )
-                transform_signature = inspect.signature(rule.transform)
-                if transform_signature.parameters["event"].annotation is dict:
-                    event = envelope.event.model_dump()
-                else:
-                    event = envelope.event
-                logger.debug("Transforming event...")
-                transformed_event = rule.transform(event=event)
-                logger.debug("Event transform complete, invoking destination")
-                rule.destination_spec.invoke(transformed_event=transformed_event)

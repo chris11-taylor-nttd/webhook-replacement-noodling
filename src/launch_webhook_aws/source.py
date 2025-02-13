@@ -1,15 +1,20 @@
 import logging
 from enum import StrEnum
 from re import Pattern, compile
-from typing import Annotated, Literal, Self, TypeAlias, Union
+from typing import Annotated, Any, Literal, Self, TypeAlias, Union
 
-from pydantic import BaseModel, BeforeValidator, Field, model_validator
-
-from launch_webhook_aws.bitbucket_server.type import (
-    EventType as BitbucketServerEventType,
+from pydantic import (
+    BaseModel,
+    BeforeValidator,
+    Discriminator,
+    Field,
+    Tag,
+    model_validator,
 )
-from launch_webhook_aws.github.event import GithubEvent
-from launch_webhook_aws.github.type import EventType as GithubEventType
+
+from launch_webhook_aws.bitbucket_server import event as bitbucket_server_event
+from launch_webhook_aws.event import discriminate_headers
+from launch_webhook_aws.github import event as github_event
 from launch_webhook_aws.type import Arn
 
 logger = logging.getLogger(__name__)
@@ -21,7 +26,39 @@ class SourceType(StrEnum):
     BITBUCKET_CLOUD = "bitbucket_cloud"
     GITHUB = "github"
     GITHUB_ENTERPRISE = "github_enterprise"
-    GENERIC = "generic"
+
+
+class SourceEvent(BaseModel):
+    headers: Annotated[
+        (
+            Annotated[
+                bitbucket_server_event.BitbucketServerHeaders, Tag("bitbucket_server")
+            ]
+            | Annotated[github_event.GithubHeaders, Tag("github")]
+        ),
+        Discriminator(discriminate_headers),
+    ]
+    body: dict[str, Any]
+
+    def to_source_event(
+        self,
+    ) -> (
+        bitbucket_server_event.BitbucketServerWebhookEvent
+        | github_event.GithubWebhookEvent
+    ):
+        if isinstance(self.headers, bitbucket_server_event.BitbucketServerHeaders):
+            return bitbucket_server_event.BitbucketServerWebhookEvent(
+                headers=self.headers, event={"headers": self.headers, **self.body}
+            )
+        elif isinstance(self.headers, github_event.GithubHeaders):
+            return github_event.GithubWebhookEvent(
+                headers=self.headers,
+                event={
+                    "headers": self.headers,
+                    "header_event": self.headers.x_github_event,
+                    **self.body,
+                },
+            )
 
 
 def validate_patterns(value: ...) -> list[Pattern]:
@@ -67,11 +104,13 @@ class SourceBase(BaseModel):
 class GithubSource(SourceBase):
     type: Literal[SourceType.GITHUB]
     organization: str
-    events: list[GithubEventType] = Field(default_factory=list)
+    events: list[github_event.GithubEventName] = Field(default_factory=list)
 
-    def match(self, event: GithubEvent) -> bool:
-        if not issubclass(type(event), GithubEvent):
-            logger.debug(f"Event source mismatch: {type(event)} is not a {GithubEvent}")
+    def match(self, event: github_event.GithubEvent) -> bool:
+        if not issubclass(type(event), github_event.GithubEvent):
+            logger.debug(
+                f"Event source mismatch: {type(event)} is not a {github_event.GithubEvent}"
+            )
             return False
         if event.action not in self.events:
             logger.debug(f"Event action mismatch: {event.action} not in {self.events}")
@@ -116,8 +155,54 @@ class GithubSource(SourceBase):
 
 class BitbucketServerSource(SourceBase):
     type: Literal[SourceType.BITBUCKET_SERVER]
-    project: str
-    events: list[BitbucketServerEventType]
+    project_key: str
+    events: list[bitbucket_server_event.BitbucketServerEventType]
+
+    def match(self, event: bitbucket_server_event.BitbucketServerEvent) -> bool:
+        if not issubclass(type(event), bitbucket_server_event.BitbucketServerEvent):
+            logger.debug(
+                f"Event source mismatch: {type(event)} is not a {bitbucket_server_event.BitbucketServerEvent}"
+            )
+            return False
+        if event.action not in self.events:
+            logger.debug(f"Event action mismatch: {event.action} not in {self.events}")
+            return False
+        if event.project_key != self.project_key:
+            logger.debug(
+                f"Organization mismatch: {event.project_key} != {self.project_key}"
+            )
+            return False
+
+        inclusion_match = False
+        exclusion_match = False
+
+        if not self.include_repositories:
+            logger.debug(
+                "No source include patterns defined, this repository is included by default."
+            )
+            inclusion_match = True
+        else:
+            for include_repo in self.include_repositories:
+                if include_repo.search(event.repository.name):
+                    logger.debug(
+                        f"Repository name {event.repository.name} matched source include pattern {include_repo}"
+                    )
+                    inclusion_match = True
+                else:
+                    logger.debug(
+                        f"Repository name {event.repository.name} did not match source include pattern {include_repo}"
+                    )
+        if self.exclude_repositories:
+            for exclude_repo in self.exclude_repositories:
+                if exclude_repo.search(event.repository.name):
+                    logger.debug(
+                        f"Repository name {event.repository.name} matched source exclude pattern {exclude_repo}"
+                    )
+                    exclusion_match = True
+
+        if inclusion_match and not exclusion_match:
+            return True
+        return False
 
 
 SourceSpec: TypeAlias = Annotated[

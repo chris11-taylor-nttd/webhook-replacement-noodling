@@ -1,26 +1,7 @@
-import json
 import pathlib
-
-import pytest
 
 from launch_webhook_aws.bitbucket_server import event as bitbucket_server_event
 from launch_webhook_aws.github import event as github_event
-
-
-@pytest.fixture
-def test_file():
-    def _test_file(path: pathlib.Path) -> dict:
-        return path.read_text()
-
-    return _test_file
-
-
-@pytest.fixture
-def test_json(test_file):
-    def _test_json(path: pathlib.Path) -> dict:
-        return json.loads(test_file(path))
-
-    return _test_json
 
 
 class TestBitbucketServerEventsParse:

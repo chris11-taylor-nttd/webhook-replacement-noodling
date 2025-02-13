@@ -1,10 +1,16 @@
 import warnings
 from typing import Annotated, Literal, Union
 
-from pydantic import ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from launch_webhook_aws.event import ScmEvent, ScmHeaders
-from launch_webhook_aws.github.type import Hook, Repository, User, UserMetadata
+from launch_webhook_aws.github.type import (
+    Hook,
+    PullRequest,
+    Repository,
+    User,
+    UserMetadata,
+)
 from launch_webhook_aws.type import CommitHash, HttpsUrl
 
 # Pydantic raises warnings when we shadow the header_event from GithubEvent on the subclasses,
@@ -31,6 +37,10 @@ class GithubEvent(ScmEvent):
     @property
     def header_event(self) -> str:
         return self.headers.x_github_event
+
+    @property
+    def organization_name(self) -> str:
+        return getattr(getattr(self, "repository"), "full_name").split("/")[0]
 
 
 class Ping(GithubEvent):
@@ -63,6 +73,9 @@ class Push(GithubEvent):
 class PullRequestEvent(GithubEvent):
     header_event: Literal["pull_request"]
     number: int
+    pull_request: PullRequest
+    repository: Repository
+    sender: User
 
 
 class PullRequestOpened(PullRequestEvent):
@@ -85,6 +98,19 @@ GithubPullRequestEventType = Annotated[
 ]
 
 GithubEventType = Annotated[
-    Union[Push, GithubPullRequestEventType],
+    Union[Ping, Push, GithubPullRequestEventType],
     Field(discriminator="header_event"),
 ]
+
+GithubEventName = Literal[
+    "ping",
+    "push",
+    "pull_request.opened",
+    "pull_request.closed",
+    "pull_request.synchronize",
+]
+
+
+class GithubWebhookEvent(BaseModel):
+    headers: GithubHeaders
+    event: GithubEventType

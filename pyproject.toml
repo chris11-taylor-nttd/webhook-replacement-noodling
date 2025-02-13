@@ -7,7 +7,10 @@ license = {text = "Apache 2.0"}
 requires-python = ">=3.11" # If you adjust this, you will need to adjust the python-tests workflow accordingly.
 # Add your dependencies to this project by using `uv add <package>`.
 dependencies = [
+    "arn>=0.1.5",
+    "boto3>=1.36.19",
     "pydantic[email]>=2.10.6",
+    "types-boto3[codebuild,codepipeline,lambda,sts]>=1.36.19",
 ]
 
 [dependency-groups]
@@ -15,6 +18,7 @@ dependencies = [
 dev = [
     "pytest>=8.3.4",
     "pytest-cov>=6.0.0",
+    "pytest-mock>=3.14.0",
     "ruff>=0.9.1",
 ]
 

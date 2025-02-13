@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Annotated, Literal, Union
 
-from pydantic import Field
+from pydantic import BaseModel, Field
 
 from launch_webhook_aws.bitbucket_server.type import (
     Change,
@@ -36,24 +36,61 @@ class Push(BitbucketServerEvent):
     repository: Repository
     changes: list[Change]
 
+    @property
+    def project_key(self) -> str:
+        return self.repository.project.key
+
+    @property
+    def repository_name(self) -> str:
+        return self.repository.name
+
 
 class SourceBranchUpdated(BitbucketServerEvent):
     event_key: Literal["pr:from_ref_updated"] = Field(alias="eventKey")
     pull_request: PullRequest = Field(alias="pullRequest")
     previous_from_hash: CommitHash = Field(alias="previousFromHash")
 
+    @property
+    def project_key(self) -> str:
+        return self.pull_request.to_ref.repository.project.key
+
+    @property
+    def repository_name(self) -> str:
+        return self.pull_request.to_ref.repository.name
+
 
 class PullRequestOpened(BitbucketServerEvent):
     event_key: Literal["pr:opened"] = Field(alias="eventKey")
     pull_request: PullRequest = Field(alias="pullRequest")
+
+    @property
+    def project_key(self) -> str:
+        return self.pull_request.to_ref.repository.project.key
+
+    @property
+    def repository_name(self) -> str:
+        return self.pull_request.to_ref.repository.name
 
 
 class PullRequestMerged(BitbucketServerEvent):
     event_key: Literal["pr:merged"] = Field(alias="eventKey")
     pull_request: PullRequest = Field(alias="pullRequest")
 
+    @property
+    def project_key(self) -> str:
+        return self.pull_request.to_ref.repository.project.key
+
+    @property
+    def repository_name(self) -> str:
+        return self.pull_request.to_ref.repository.name
+
 
 BitbucketServerEventType = Annotated[
     Union[Push, SourceBranchUpdated, PullRequestOpened, PullRequestMerged],
     Field(discriminator="event_key"),
 ]
+
+
+class BitbucketServerWebhookEvent(BaseModel):
+    headers: BitbucketServerHeaders
+    event: BitbucketServerEventType
