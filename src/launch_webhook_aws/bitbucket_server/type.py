@@ -20,6 +20,10 @@ class RefType(StrEnum):
     TAG = "TAG"
 
 
+class ChangeType(StrEnum):
+    UPDATE = "UPDATE"
+
+
 class PullRequestState(StrEnum):
     OPEN = "OPEN"
     MERGED = "MERGED"
@@ -58,7 +62,7 @@ class BareLink(BaseModel):
 
 
 class Links(BaseModel):
-    clone: list[HttpLink | SshLink]
+    clone: list[HttpLink | SshLink] | None = Field(default=None)
     self: list[BareLink]
 
 
@@ -66,7 +70,6 @@ class Project(BaseModel):
     key: str
     id: int
     name: str
-    description: str
     public: bool
     type: ProjectType
     links: Links
@@ -74,7 +77,7 @@ class Project(BaseModel):
 
 class RefInfo(BaseModel):
     id: str
-    display_id: str
+    display_id: str = Field(alias="displayId")
     type: RefType
 
 
@@ -83,13 +86,14 @@ class Change(BaseModel):
     ref_id: str = Field(alias="refId")
     from_hash: CommitHash = Field(alias="fromHash")
     to_hash: CommitHash = Field(alias="toHash")
+    type: ChangeType
 
 
 class Repository(BaseModel):
     slug: str
     id: int
     name: str
-    hierarchy_id: int = Field(alias="hierarchyId")
+    hierarchy_id: str = Field(alias="hierarchyId")
     scm_id: str = Field(alias="scmId")
     state: RepositoryState
     status_message: str = Field(alias="statusMessage")
@@ -110,13 +114,18 @@ class User(BaseModel):
     links: Links
 
 
-class Participant(User):
+class Participant(BaseModel):
+    user: User
     role: ParticipantRole
     approved: bool
     status: ApprovalStatus
 
 
 class Ref(RefInfo):
+    id: str
+    display_id: str = Field(alias="displayId")
+    latest_commit: CommitHash = Field(alias="latestCommit")
+    type: RefType
     repository: Repository
 
 
@@ -124,7 +133,6 @@ class PullRequest(BaseModel):
     id: int
     version: int
     title: str
-    description: str
     state: PullRequestState
     open: bool
     closed: bool
