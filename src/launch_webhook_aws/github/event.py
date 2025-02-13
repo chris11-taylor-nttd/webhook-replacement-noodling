@@ -13,8 +13,9 @@ from launch_webhook_aws.github.type import (
 )
 from launch_webhook_aws.type import CommitHash, HttpsUrl
 
-# Pydantic raises warnings when we shadow the header_event from GithubEvent on the subclasses,
-# but this isn't useful information to us so we can filter them out.
+# Pydantic raises warnings when we shadow the header_event from GithubEvent
+# on the subclasses, but this isn't useful information so we can filter them
+# out.
 warnings.filterwarnings("ignore", category=UserWarning, module="pydantic")
 
 
@@ -102,6 +103,8 @@ GithubEventType = Annotated[
     Field(discriminator="header_event"),
 ]
 
+# For events that contain an "action" key, we concatenate
+# the header_event, a dot, and the action.
 GithubEventName = Literal[
     "ping",
     "push",
