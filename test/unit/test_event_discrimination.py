@@ -167,3 +167,15 @@ class TestGithubEventsDiscriminate:
         transformed_event = source_event.to_source_event()
         assert isinstance(transformed_event, github_event.GithubWebhookEvent)
         assert isinstance(transformed_event.event, github_event.PullRequestSynchronize)
+
+
+def test_unrecognized_headers_fail_source_event_discrimination():
+    headers = {
+        "Y-Request-Id": "unit-test",
+        "Y-Event-Key": "pr:merged",
+        "Y-Hub-Signature": "unit-test",
+        "Y-Hook-UUID": "only-bitbucket-cloud-has-this",
+    }
+    body = {}
+    with pytest.raises(ValueError, match="Failed to discriminate header source"):
+        _ = SourceEvent(headers=headers, body=body)

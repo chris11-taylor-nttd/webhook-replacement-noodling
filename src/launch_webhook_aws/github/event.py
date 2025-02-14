@@ -1,4 +1,5 @@
 import warnings
+from enum import StrEnum
 from typing import Annotated, Literal, Union
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -16,7 +17,17 @@ from launch_webhook_aws.type import CommitHash, HttpsUrl
 # Pydantic raises warnings when we shadow the header_event from GithubEvent
 # on the subclasses, but this isn't useful information so we can filter them
 # out.
-warnings.filterwarnings("ignore", category=UserWarning, module="pydantic")
+warnings.filterwarnings("ignore", category=UserWarning, module="pydantic", lineno=192)
+
+
+class EventType(StrEnum):
+    # For events that contain an "action" key, we concatenate
+    # the header_event, a dot, and the action.
+    PING = "ping"
+    PUSH = "push"
+    PULL_REQUEST_OPENED = "pull_request.opened"
+    PULL_REQUEST_CLOSED = "pull_request.closed"
+    PULL_REQUEST_SYNCHRONIZE = "pull_request.synchronize"
 
 
 class GithubHeaders(ScmHeaders):
@@ -43,9 +54,16 @@ class GithubEvent(ScmEvent):
     def organization_name(self) -> str:
         return getattr(getattr(self, "repository"), "full_name").split("/")[0]
 
+    @property
+    def action_type(self) -> str:
+        action_path = [self.header_event]
+        if hasattr(self, "action"):
+            action_path.append(self.action)
+        return ".".join(action_path)
+
 
 class Ping(GithubEvent):
-    header_event: Literal["ping"]
+    header_event: Literal[EventType.PING]
     zen: str
     hook_id: int
     hook: Hook
@@ -54,7 +72,7 @@ class Ping(GithubEvent):
 
 
 class Push(GithubEvent):
-    header_event: Literal["push"]
+    header_event: Literal[EventType.PUSH]
 
     after: CommitHash
     base_ref: None
@@ -101,16 +119,6 @@ GithubPullRequestEventType = Annotated[
 GithubEventType = Annotated[
     Union[Ping, Push, GithubPullRequestEventType],
     Field(discriminator="header_event"),
-]
-
-# For events that contain an "action" key, we concatenate
-# the header_event, a dot, and the action.
-GithubEventName = Literal[
-    "ping",
-    "push",
-    "pull_request.opened",
-    "pull_request.closed",
-    "pull_request.synchronize",
 ]
 
 

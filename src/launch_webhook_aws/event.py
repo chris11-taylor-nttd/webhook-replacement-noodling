@@ -23,4 +23,4 @@ def discriminate_headers(v: Any) -> str:
         if "X-Hook-UUID" in v:
             return "bitbucket_cloud"
         return "bitbucket_server"
-    raise ValueError("Unknown headers")
+    raise ValueError("Failed to discriminate header source")

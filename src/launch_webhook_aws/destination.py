@@ -28,7 +28,7 @@ class AwsDestination(BaseModel):
     session_name: str = Field(default=os.getenv("SESSION_NAME", "launch_webhook_aws"))
     sts_client: StsClient = Field(default_factory=lambda: boto3.client("sts"))
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
 
     @abstractmethod
     def invoke(self, transformed_event: dict[str, str]) -> None: ...

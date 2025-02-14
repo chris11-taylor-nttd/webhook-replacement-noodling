@@ -6,6 +6,7 @@ from typing import Annotated, Any, Literal, Self, TypeAlias, Union
 from pydantic import (
     BaseModel,
     BeforeValidator,
+    ConfigDict,
     Discriminator,
     Field,
     Tag,
@@ -94,6 +95,8 @@ class SourceBase(BaseModel):
     verify_signature: bool = Field(default=False)
     signature_secret: Arn | None = Field(default=None)
 
+    model_config = ConfigDict(extra="forbid")
+
     @model_validator(mode="after")
     def check_signature_secret_configuration(self) -> Self:
         if self.verify_signature and self.signature_secret is None:
@@ -104,7 +107,7 @@ class SourceBase(BaseModel):
 class GithubSource(SourceBase):
     type: Literal[SourceType.GITHUB]
     organization: str
-    events: list[github_event.GithubEventName] = Field(default_factory=list)
+    events: list[github_event.EventType]
 
     def match(self, event: github_event.GithubEvent) -> bool:
         if not issubclass(type(event), github_event.GithubEvent):
@@ -112,8 +115,10 @@ class GithubSource(SourceBase):
                 f"Event source mismatch: {type(event)} is not a {github_event.GithubEvent}"
             )
             return False
-        if event.action not in self.events:
-            logger.debug(f"Event action mismatch: {event.action} not in {self.events}")
+        if event.action_type not in self.events:
+            logger.debug(
+                f"Event action mismatch: {event.action_type} not in {self.events}"
+            )
             return False
         if event.organization_name != self.organization:
             logger.debug(
@@ -156,7 +161,7 @@ class GithubSource(SourceBase):
 class BitbucketServerSource(SourceBase):
     type: Literal[SourceType.BITBUCKET_SERVER]
     project_key: str
-    events: list[bitbucket_server_event.BitbucketServerEventType]
+    events: list[bitbucket_server_event.EventType]
 
     def match(self, event: bitbucket_server_event.BitbucketServerEvent) -> bool:
         if not issubclass(type(event), bitbucket_server_event.BitbucketServerEvent):
@@ -164,12 +169,14 @@ class BitbucketServerSource(SourceBase):
                 f"Event source mismatch: {type(event)} is not a {bitbucket_server_event.BitbucketServerEvent}"
             )
             return False
-        if event.action not in self.events:
-            logger.debug(f"Event action mismatch: {event.action} not in {self.events}")
+        if event.event_key not in [event_type.value for event_type in self.events]:
+            logger.debug(
+                f"Event action mismatch: {event.event_key} not in {self.events}"
+            )
             return False
         if event.project_key != self.project_key:
             logger.debug(
-                f"Organization mismatch: {event.project_key} != {self.project_key}"
+                f"Project key mismatch: {event.project_key} != {self.project_key}"
             )
             return False
 
@@ -183,20 +190,20 @@ class BitbucketServerSource(SourceBase):
             inclusion_match = True
         else:
             for include_repo in self.include_repositories:
-                if include_repo.search(event.repository.name):
+                if include_repo.search(event.repository_name):
                     logger.debug(
-                        f"Repository name {event.repository.name} matched source include pattern {include_repo}"
+                        f"Repository name {event.repository_name} matched source include pattern {include_repo}"
                     )
                     inclusion_match = True
                 else:
                     logger.debug(
-                        f"Repository name {event.repository.name} did not match source include pattern {include_repo}"
+                        f"Repository name {event.repository_name} did not match source include pattern {include_repo}"
                     )
         if self.exclude_repositories:
             for exclude_repo in self.exclude_repositories:
-                if exclude_repo.search(event.repository.name):
+                if exclude_repo.search(event.repository_name):
                     logger.debug(
-                        f"Repository name {event.repository.name} matched source exclude pattern {exclude_repo}"
+                        f"Repository name {event.repository_name} matched source exclude pattern {exclude_repo}"
                     )
                     exclusion_match = True
 

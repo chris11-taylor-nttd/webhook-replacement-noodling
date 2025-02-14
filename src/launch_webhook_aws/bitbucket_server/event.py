@@ -1,4 +1,5 @@
 from datetime import datetime
+from enum import StrEnum
 from typing import Annotated, Literal, Union
 
 from pydantic import BaseModel, Field
@@ -11,6 +12,13 @@ from launch_webhook_aws.bitbucket_server.type import (
     User,
 )
 from launch_webhook_aws.event import ScmEvent, ScmHeaders
+
+
+class EventType(StrEnum):
+    REPO_REFS_CHANGED = "repo:refs_changed"
+    PR_FROM_REF_UPDATED = "pr:from_ref_updated"
+    PR_OPENED = "pr:opened"
+    PR_MERGED = "pr:merged"
 
 
 class BitbucketServerHeaders(ScmHeaders):
@@ -32,7 +40,7 @@ class BitbucketServerEvent(ScmEvent):
 
 
 class Push(BitbucketServerEvent):
-    event_key: Literal["repo:refs_changed"] = Field(alias="eventKey")
+    event_key: Literal[EventType.REPO_REFS_CHANGED] = Field(alias="eventKey")
     repository: Repository
     changes: list[Change]
 
@@ -46,7 +54,7 @@ class Push(BitbucketServerEvent):
 
 
 class SourceBranchUpdated(BitbucketServerEvent):
-    event_key: Literal["pr:from_ref_updated"] = Field(alias="eventKey")
+    event_key: Literal[EventType.PR_FROM_REF_UPDATED] = Field(alias="eventKey")
     pull_request: PullRequest = Field(alias="pullRequest")
     previous_from_hash: CommitHash = Field(alias="previousFromHash")
 
@@ -60,7 +68,7 @@ class SourceBranchUpdated(BitbucketServerEvent):
 
 
 class PullRequestOpened(BitbucketServerEvent):
-    event_key: Literal["pr:opened"] = Field(alias="eventKey")
+    event_key: Literal[EventType.PR_OPENED] = Field(alias="eventKey")
     pull_request: PullRequest = Field(alias="pullRequest")
 
     @property
@@ -73,7 +81,7 @@ class PullRequestOpened(BitbucketServerEvent):
 
 
 class PullRequestMerged(BitbucketServerEvent):
-    event_key: Literal["pr:merged"] = Field(alias="eventKey")
+    event_key: Literal[EventType.PR_MERGED] = Field(alias="eventKey")
     pull_request: PullRequest = Field(alias="pullRequest")
 
     @property
