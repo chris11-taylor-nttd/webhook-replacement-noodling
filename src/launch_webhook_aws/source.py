@@ -111,13 +111,11 @@ class GithubSource(SourceBase):
 
     def match(self, event: github_event.GithubEvent) -> bool:
         if not issubclass(type(event), github_event.GithubEvent):
-            logger.debug(
-                f"Event source mismatch: {type(event)} is not a {github_event.GithubEvent}"
-            )
+            logger.debug(f"Event source mismatch: {type(event)} is not a GithubEvent")
             return False
         if event.action_type not in self.events:
             logger.debug(
-                f"Event action mismatch: {event.action_type} not in {self.events}"
+                f"Event action mismatch: {event.action_type} not in {[e.value for e in self.events]}"
             )
             return False
         if event.organization_name != self.organization:
@@ -131,7 +129,7 @@ class GithubSource(SourceBase):
 
         if not self.include_repositories:
             logger.debug(
-                "No source include patterns defined, this repository is included by default."
+                "No source repository include patterns defined, this repository is included by default."
             )
             inclusion_match = True
         else:
@@ -166,12 +164,12 @@ class BitbucketServerSource(SourceBase):
     def match(self, event: bitbucket_server_event.BitbucketServerEvent) -> bool:
         if not issubclass(type(event), bitbucket_server_event.BitbucketServerEvent):
             logger.debug(
-                f"Event source mismatch: {type(event)} is not a {bitbucket_server_event.BitbucketServerEvent}"
+                f"Event source mismatch: {type(event)} is not a BitbucketServerEvent"
             )
             return False
         if event.event_key not in [event_type.value for event_type in self.events]:
             logger.debug(
-                f"Event action mismatch: {event.event_key} not in {self.events}"
+                f"Event action mismatch: {event.event_key} not in {[e.value for e in self.events]}"
             )
             return False
         if event.project_key != self.project_key:

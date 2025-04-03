@@ -1,0 +1,28 @@
+[
+    {
+        "source": {
+            "type": "github",
+            "organization": "example-org",
+            "events": [
+                "pull_request.closed"
+            ]
+        },
+        "transform": "test.example_library.sample_transform_function",
+        "destination": {
+            "type": "none"
+        }
+    },
+    {
+        "source": {
+            "type": "bitbucket_server",
+            "project_key": "DSO",
+            "events": [
+                "pr:merged"
+            ]
+        },
+        "transform": "launch_webhook_aws.transform.default_transform",
+        "destination": {
+            "type": "none"
+        }
+    }
+]

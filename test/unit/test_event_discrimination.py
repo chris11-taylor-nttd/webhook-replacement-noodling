@@ -1,3 +1,4 @@
+import json
 import pathlib
 
 import pytest
@@ -9,16 +10,9 @@ from launch_webhook_aws.source import SourceEvent
 
 
 class TestBitbucketServerEventsDiscriminate:
-    def test_pr_merged(self, test_json):
-        headers = {
-            "X-Request-Id": "unit-test",
-            "X-Event-Key": "pr:merged",
-            "X-Hub-Signature": "unit-test",
-        }
-        body = test_json(
-            pathlib.Path("test/data/events/bitbucket_server/pr_merged.json")
-        )
-        source_event = SourceEvent(headers=headers, body=body)
+    def test_pr_merged(self, test_event):
+        headers, body = test_event("bitbucket_server", "pr_merged.json")
+        source_event = SourceEvent(headers=headers, body=json.loads(body))
         transformed_event = source_event.to_source_event()
         assert isinstance(
             transformed_event, bitbucket_server_event.BitbucketServerWebhookEvent
@@ -27,14 +21,9 @@ class TestBitbucketServerEventsDiscriminate:
             transformed_event.event, bitbucket_server_event.PullRequestMerged
         )
 
-    def test_pr_open(self, test_json):
-        headers = {
-            "X-Request-Id": "unit-test",
-            "X-Event-Key": "pr:opened",
-            "X-Hub-Signature": "unit-test",
-        }
-        body = test_json(pathlib.Path("test/data/events/bitbucket_server/pr_open.json"))
-        source_event = SourceEvent(headers=headers, body=body)
+    def test_pr_open(self, test_event):
+        headers, body = test_event("bitbucket_server", "pr_open.json")
+        source_event = SourceEvent(headers=headers, body=json.loads(body))
         transformed_event = source_event.to_source_event()
         assert isinstance(
             transformed_event, bitbucket_server_event.BitbucketServerWebhookEvent
@@ -43,16 +32,9 @@ class TestBitbucketServerEventsDiscriminate:
             transformed_event.event, bitbucket_server_event.PullRequestOpened
         )
 
-    def test_source_updated(self, test_json):
-        headers = {
-            "X-Request-Id": "unit-test",
-            "X-Event-Key": "pr:from_ref_updated",
-            "X-Hub-Signature": "unit-test",
-        }
-        body = test_json(
-            pathlib.Path("test/data/events/bitbucket_server/pr_source_updated.json")
-        )
-        source_event = SourceEvent(headers=headers, body=body)
+    def test_source_updated(self, test_event):
+        headers, body = test_event("bitbucket_server", "pr_source_updated.json")
+        source_event = SourceEvent(headers=headers, body=json.loads(body))
         transformed_event = source_event.to_source_event()
         assert isinstance(
             transformed_event, bitbucket_server_event.BitbucketServerWebhookEvent
@@ -61,39 +43,28 @@ class TestBitbucketServerEventsDiscriminate:
             transformed_event.event, bitbucket_server_event.SourceBranchUpdated
         )
 
-    def test_push(self, test_json):
-        headers = {
-            "X-Request-Id": "unit-test",
-            "X-Event-Key": "repo:refs_changed",
-            "X-Hub-Signature": "unit-test",
-        }
-        body = test_json(pathlib.Path("test/data/events/bitbucket_server/push.json"))
-        source_event = SourceEvent(headers=headers, body=body)
+    def test_push(self, test_event):
+        headers, body = test_event("bitbucket_server", "push.json")
+        source_event = SourceEvent(headers=headers, body=json.loads(body))
         transformed_event = source_event.to_source_event()
         assert isinstance(
             transformed_event, bitbucket_server_event.BitbucketServerWebhookEvent
         )
         assert isinstance(transformed_event.event, bitbucket_server_event.Push)
 
-    def test_bitbucket_cloud_headers_fails_to_discriminate(self, test_json):
+    def test_bitbucket_cloud_headers_fails_to_discriminate(self, test_event):
         """
         Bitbucket cloud is not implemented, so we expect a failure if someone tries to use it.
 
         Whoever ends up implementing this source should remove this test.
         """
-        headers = {
-            "X-Request-Id": "unit-test",
-            "X-Event-Key": "pr:merged",
-            "X-Hub-Signature": "unit-test",
-            "X-Hook-UUID": "only-bitbucket-cloud-has-this",
-        }
-        body = test_json(
-            pathlib.Path("test/data/events/bitbucket_server/pr_merged.json")
-        )
+        headers, body = test_event("bitbucket_server", "pr_merged.json")
+        headers["X-Hook-UUID"] = "only-bitbucket-cloud-has-this"
+
         with pytest.raises(ValidationError):
             # Bitbucket server is not implemented, so we expect a failure if someone tries to use it.
             # Whoever ends up implementing that source should remove this test.
-            _ = SourceEvent(headers=headers, body=body)
+            _ = SourceEvent(headers=headers, body=json.loads(body))
 
 
 class TestGithubEventsDiscriminate:

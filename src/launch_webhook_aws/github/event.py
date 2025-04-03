@@ -21,10 +21,13 @@ warnings.filterwarnings("ignore", category=UserWarning, module="pydantic", linen
 
 
 class EventType(StrEnum):
-    # For events that contain an "action" key, we concatenate
-    # the header_event, a dot, and the action.
+    # Some actions only contain an X-Github-Event header,
+    # so we use the header_event alone as the discriminator
+    # and for the SourceSpec type.
     PING = "ping"
     PUSH = "push"
+    # For events that contain an "action" key, we concatenate
+    # the header_event, a dot, and the action.
     PULL_REQUEST_OPENED = "pull_request.opened"
     PULL_REQUEST_CLOSED = "pull_request.closed"
     PULL_REQUEST_SYNCHRONIZE = "pull_request.synchronize"
@@ -43,6 +46,7 @@ class GithubHeaders(ScmHeaders):
 class GithubEvent(ScmEvent):
     headers: GithubHeaders
 
+    @property
     def signature_hash_sha256(self) -> str:
         return self.headers.x_hub_signature_256
 
@@ -60,6 +64,10 @@ class GithubEvent(ScmEvent):
         if hasattr(self, "action"):
             action_path.append(self.action)
         return ".".join(action_path)
+
+    @property
+    def repository_name(self) -> str:
+        return self.repository.name
 
 
 class Ping(GithubEvent):

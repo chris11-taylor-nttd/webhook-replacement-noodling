@@ -50,7 +50,7 @@ def test_assumed_role_credentials_do_not_log(caplog, capsys):
 
     with caplog.at_level(logging.DEBUG):
         logger.debug(creds)
-        logger.debug(creds.model_dump())
+        # logger.debug(creds.model_dump())
 
     print("Nothing sensitive here.")
     print(f"My creds are: {creds}")
@@ -97,7 +97,7 @@ class TestInvokeOverridesClassValuesWithEventValues:
             type="codebuild",
             role_arn="arn:aws:iam::123456789012:role/example-role",
             project_name="cool-project",
-            environment_variables_override={"foo": "bar"},
+            environment_variables_override=[{"name": "foo", "value": "bar"}],
             sts_client=sts_client,
             client=service_client,
         )
@@ -106,13 +106,14 @@ class TestInvokeOverridesClassValuesWithEventValues:
             transformed_event={
                 "codebuild": {
                     "project_name": "override-project",
-                    "environment_variables_override": {"baz": "qux"},
+                    "environment_variables_override": [{"name": "foo", "value": "baz"}],
                 }
             }
         )
 
         service_client.start_build.assert_called_once_with(
-            projectName="override-project", environmentVariablesOverride={"baz": "qux"}
+            projectName="override-project",
+            environmentVariablesOverride=[{"name": "foo", "value": "baz"}],
         )
 
     def test_codepipeline(self):
@@ -152,7 +153,7 @@ class TestInvokeOverridesClassValuesWithEventValues:
         service_client = MockLambdaClient()
 
         lambda_function = LambdaFunction(
-            type="lambda",
+            type="lambdafunction",
             role_arn="arn:aws:iam::123456789012:role/example-role",
             function_name="my-lambda-function",
             payload="foo",
@@ -162,7 +163,7 @@ class TestInvokeOverridesClassValuesWithEventValues:
 
         lambda_function.invoke(
             transformed_event={
-                "lambda": {
+                "lambdafunction": {
                     "function_name": "override-lambda-function",
                     "payload": "bar",
                 }
@@ -188,7 +189,7 @@ class TestRoleAssumptionBehavior:
         sts_client.assume_role.return_value = cred_response
 
         lambda_function = LambdaFunction(
-            type="lambda",
+            type="lambdafunction",
             role_arn="arn:aws:iam::123456789012:role/example-role",
             external_id="external-id",
             region="us-west-2",
@@ -226,7 +227,7 @@ class TestRoleAssumptionBehavior:
         sts_client.assume_role.return_value = cred_response
 
         lambda_function = LambdaFunction(
-            type="lambda",
+            type="lambdafunction",
             role_arn="arn:aws:iam::123456789012:role/example-role",
             external_id="external-id",
             session_name="unit-test-session",

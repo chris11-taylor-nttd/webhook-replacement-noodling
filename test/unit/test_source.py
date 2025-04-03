@@ -397,7 +397,7 @@ class TestGithubServerSourceMatching:
 
         with caplog.at_level(logging.DEBUG):
             assert organization_only.match(event=transformed_event.event)
-            assert "No source include patterns defined" in caplog.text
+            assert "No source repository include patterns defined" in caplog.text
             caplog.clear()
 
         with caplog.at_level(logging.DEBUG):

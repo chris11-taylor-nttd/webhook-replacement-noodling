@@ -15,6 +15,10 @@ class ScmEvent(BaseModel):
     @abstractmethod
     def signature_hash_sha256(self) -> str | None: ...
 
+    @property
+    @abstractmethod
+    def repository_name(self) -> str | None: ...
+
 
 def discriminate_headers(v: Any) -> str:
     if "X-Github-Hook-Id" in v:
