@@ -27,20 +27,34 @@ The Source has a few base fields which are present across all SCM configurations
 
 | Field Name    | Type | Example Value | Notes |
 | ------------- | ---- | ------------- | ----- |
-| `type` | string | "github" | Narrows the incoming event to a particular Source type. |
+| `type` | string | "github" | Narrows the incoming event to a particular Source type. This field is required. |
 | `include_repositories` | List of regular expressions | ["^tf-.+$"] | This example would include any repository prefixed with 'tf-' in its name. If you do not define an `include_repositories` value, all repositories are considered included. |
-| `exclude_repositories` | List of regular expressions | ["^.{20,}$"] | This example would exclude any repository with 20 or more characters in its name. |
-| `verify_signature`    | boolean | true | When true, the sha256 signature associated with this event is validated against the `signature_secret`. |
+| `exclude_repositories` | List of regular expressions | ["^.{20,}$"] | This example would exclude any repository with 20 or more characters in its name. If you do not define an `exclude_repositories` value, no exclusion will be performed. |
+| `verify_signature`    | boolean | true | When true, the sha256 signature associated with this event is validated against the `signature_secret`. If not supplied, no verification will be performed. |
 | `signature_secret` | ARN | "arn:aws:secretsmanager:us-east-1:123456789012:secret:secret-name-here" | SecretsManager Secret ARN containing the shared secret for event signature validation. This is only required if `verify_signature` is true. |
 
 Additional fields are available depending on the `type` you choose.
+
+### Source Matching
+
+An event is considered to match a source when:
+
+- The event matches the source's `type` field, i.e. it is identifiable as coming from Github
+- The event comes from the organization (Github) or project (Bitbucket Server) matching the rule configuration
+- The event comes from a repository matching an expression in `include_repositories` if one is defined. If `include_repositories` is not set, all repositories are considered matches.
+- The event's repository does not match an expression in `exclude_repositories` if one is defined. If `exclude_repositories` is not defined, no exclusion is performed.
+- The `events` field includes the event's type (and potentially subtype for certain Github events).
+
+An event is considered a match if and only if it's matched by `include_repositories` and not matched by `exclude_repositories`. Expressions are evaluated using Python's `re.search` method and should include anchors ("^", "$") to match the start and end where appropriate to keep from overly-eager matching.
+
+If `verify_signature` is set, the event's sha256 signature is computed using a secret value stored in SecretsManager and if a mismatch is found, the event will not be processed further.
 
 #### Github Source
 
 | Field Name    | Type | Example Value | Notes |
 | ------------- | ---- | ------------- | ----- |
 | `organization` | string | "launchbynttdata" | This field is required. A rule cannot apply to more than a single organization at a time. |
-| `events` | List of strings | ["pull_request.opened", "pull_request.synchronize"] | The example would only match PR events where the PR was being opened or updated. These event strings match the X-Github-Event header, and if there are sub-types, there will be a dot followed by the "action" field, like in the case of the pull_request events in the example. |
+| `events` | List of strings | ["pull_request.opened", "pull_request.synchronize", "push"] | The example would only match PR events where the PR was being opened or updated. These event strings match the X-Github-Event header, and if there are subtypes for a particular event (e.g. pull_request), there will be a dot followed by the "action" field. |
 
 #### Recognized Github Events:
 
@@ -84,6 +98,9 @@ This framework requires that the transform function passed to it meets the follo
 - The function has its return annotated with dict or launch_webhook_aws.transform.TransformResult
 
 If the transform function does not meet these criteria, the **Rule** will raise a ValidationError.
+
+> [!TIP]
+> Functions that annotate the event with a 'dict' type will have the event model transformed to a Python dict prior to invocation. Functions that annotate with a subtype of ScmEvent will receive the pydantic model derived from the raw event's payload. Using a subtype of ScmEvent to annotate the event parameter and TransformResult for the return annotation should be preferred as it will allow your IDE to provide type hints.
 
 ### Destination
 
@@ -199,7 +216,6 @@ def user_extraction_transform(event: Push) -> TransformResult:
 ```
 
 Of course, the actions taken in the transform are not limited to manipulating the received event data alone. You could query a database, use a remote API, or do anything else that the Lambda function running the **Processor** is entitled to do.
-
 
 
 ### Running tests
