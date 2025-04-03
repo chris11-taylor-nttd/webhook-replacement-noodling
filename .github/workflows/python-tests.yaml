@@ -20,9 +20,9 @@ jobs:
     strategy:
       matrix:
         # Adjust the matrix to test against different or multiple versions.
-        # Note that adding more versions will result in a code coverage report 
+        # Note that adding more versions will result in a code coverage report
         # for each version; you may wish to adjust that step's behavior.
-        python-version: ["3.11"] 
+        python-version: ["3.11"]
     steps:
     - uses: actions/checkout@v4
     - name: Set up Python ${{ matrix.python-version }}
@@ -45,3 +45,4 @@ jobs:
         title: Coverage report for Python ${{ matrix.python-version }}
         remove-link-from-badge: true
         unique-id-for-comment: ${{ matrix.python-version }}
+        coverage-path-prefix: src/
